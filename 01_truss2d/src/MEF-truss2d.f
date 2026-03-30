@@ -9,12 +9,11 @@ C      METHOD=2: eliminacao de linhas/colunas
 C=============================================================
       IMPLICIT NONE
       INTEGER GDL
-
       INTEGER MAXN, MAXE, MAXM, MAXBC, MAXL
       PARAMETER (MAXN=200, MAXE=400, MAXM=50, MAXBC=400, MAXL=400)
       
       INTEGER MAX2N
-      PARAMETER (MAX2N = 2*MAXN)
+      PARAMETER (MAX2N = 2*MAXN) 
 
       INTEGER NN, NE, NM, NBC, NLOAD, METHOD
       INTEGER I, J, K, E, ID, JD, M
@@ -49,8 +48,8 @@ C=============================================================
       INTEGER OUTUNIT
 C-------------------------------------------------------------
 
-      INFILE = 'truss2d01.dat'
-      OUTFILE = 'truss2d01-eliminacao.out'
+      INFILE = 'truss2d02.dat'
+      OUTFILE = 'truss2d02-eliminacao.out'
       OUTUNIT = 20
 
       OPEN(10,FILE=INFILE,STATUS='OLD')
