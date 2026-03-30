@@ -24,32 +24,32 @@ C=============================================================
       INTEGER LDNODE(MAXL), LDDOF(MAXL)
       DOUBLE PRECISION LDVAL(MAXL)
 
-      DOUBLE PRECISION X(MAXN), Y(MAXN)
+      DOUBLE PRECISION X(MAXN), Y(MAXN), Z(MAXN)
       INTEGER E1(MAXE), E2(MAXE), EMAT(MAXE)
       DOUBLE PRECISION EA(MAXM), AA(MAXM)
 
       INTEGER NDOF, NFREE
-      INTEGER G1, G2, G3, G4
-      DOUBLE PRECISION KGL(4,4), KE(4,4)
-      DOUBLE PRECISION C, S, L, EMod, Area, kfac
+      INTEGER G1, G2, G3, G4, G5, G6
+      DOUBLE PRECISION KGL(6,6), KE(6,6)
+      DOUBLE PRECISION C, S, V,  L, EMod, Area, kfac
 
-      DOUBLE PRECISION KMAT(2*MAXN,2*MAXN)
-      DOUBLE PRECISION F(2*MAXN), U(2*MAXN), R(2*MAXN)
+      DOUBLE PRECISION KMAT(3*MAXN,3*MAXN)
+      DOUBLE PRECISION F(3*MAXN), U(3*MAXN), R(3*MAXN)
       DOUBLE PRECISION PENA
       
-      DOUBLE PRECISION UE(4), DU, NAX, SIG
+      DOUBLE PRECISION UE(6), DU, NAX, SIG
 
-      DOUBLE PRECISION KMAT_ORIG(2*MAXN,2*MAXN), F_ORIG(2*MAXN)
-      INTEGER IS_PRESCRIBED(2*MAXN)
-      INTEGER FREE_GDLS(2*MAXN)
-      DOUBLE PRECISION KRED(2*MAXN,2*MAXN), FRED(2*MAXN), URED(2*MAXN)
+      DOUBLE PRECISION KMAT_ORIG(3*MAXN,3*MAXN), F_ORIG(3*MAXN)
+      INTEGER IS_PRESCRIBED(3*MAXN)
+      INTEGER FREE_GDLS(3*MAXN)
+      DOUBLE PRECISION KRED(3*MAXN,3*MAXN), FRED(3*MAXN), URED(3*MAXN)
 
       CHARACTER*120 INFILE, OUTFILE
       INTEGER OUTUNIT
 C-------------------------------------------------------------
 
-      INFILE = 'truss2d02.dat'
-      OUTFILE = 'truss2d02-eliminacao.out'
+      INFILE = 'truss3d01.dat'
+      OUTFILE = 'truss3d01-eliminacao.out'
       OUTUNIT = 20
 
       OPEN(10,FILE=INFILE,STATUS='OLD')
@@ -58,11 +58,11 @@ C-------------------------------------------------------------
 C----- Leitura basica
       READ(10,*) NN, NE, NM, NBC, NLOAD
       READ(10,*) METHOD
-      NDOF = 2*NN
+      NDOF = 3*NN
 
 C----- Nos
       DO I=1,NN
-         READ(10,*) NODE, X(NODE), Y(NODE)
+         READ(10,*) NODE, X(NODE), Y(NODE), Z(NODE)
       END DO
 
 C----- Materiais (id, E, A)
@@ -75,12 +75,12 @@ C----- Elementos (id, no1, no2, matid)
          READ(10,*) ID, E1(ID), E2(ID), EMAT(ID)
       END DO
 
-C----- Condicoes de contorno (no, dof(1=ux,2=uy), valor)
+C----- Condicoes de contorno (no, dof(1=ux,2=uy,3=uz), valor)
       DO I=1,NBC
          READ(10,*) BCNODE(I), BCDOF(I), BCVAL(I)
       END DO
 
-C----- Cargas nodais (no, dof(1=ux,2=uy), valor)
+C----- Cargas nodais (no, dof(1=ux,2=uy,3=uz), valor)
       DO I=1,NLOAD
          READ(10,*) LDNODE(I), LDDOF(I), LDVAL(I)
       END DO
@@ -120,38 +120,39 @@ C=============================================================
          EMod = EA(MATID)
          Area = AA(MATID)
 
-         L = DSQRT( (X(N2)-X(N1))**2 + (Y(N2)-Y(N1))**2 )
+         L = DSQRT( (X(N2)-X(N1))**2 + (Y(N2)-Y(N1))**2 
+     .                               + (Z(N2)-Z(N1))**2)
          C = (X(N2)-X(N1))/L
          S = (Y(N2)-Y(N1))/L
+         V = (Z(N2)-Z(N1))/L
+         
 
          kfac = EMod*Area/L
 
 C----- Matriz local em coordenadas globais (4x4)
          KE(1,1) =  kfac*C*C
          KE(1,2) =  kfac*C*S
-         KE(1,3) = -kfac*C*C
-         KE(1,4) = -kfac*C*S
+         KE(1,3) =  kfac*C*V
+         KE(1,4) = -kfac*C*C
+         KE(1,5) = -kfac*C*S
+         KE(1,6) = -kfac*C*V
 
-         KE(2,1) =  kfac*C*S
+         KE(2,1) =  KE(1,2)
          KE(2,2) =  kfac*S*S
-         KE(2,3) = -kfac*C*S
-         KE(2,4) = -kfac*S*S
+         KE(2,3) =  kfac*S*V
+         KE(2,4) = -kfac*C*S
+         KE(2,5) = -kfac*S*S
+         KE(2,6) = -kfac*S*V
 
-         KE(3,1) = -kfac*C*C
-         KE(3,2) = -kfac*C*S
-         KE(3,3) =  kfac*C*C
-         KE(3,4) =  kfac*C*S
 
-         KE(4,1) = -kfac*C*S
-         KE(4,2) = -kfac*S*S
-         KE(4,3) =  kfac*C*S
-         KE(4,4) =  kfac*S*S
 
 C----- Mapeamento gdl
          G1 = GDL(N1,1)
          G2 = GDL(N1,2)
-         G3 = GDL(N2,1)
-         G4 = GDL(N2,2)
+         G3 = GDL(N1,3)
+         G4 = GDL(N2,1)
+         G5 = GDL(N2,2)
+         G6 = GDL(N2,3)
 
 C----- Montagem
          CALL ASSEMBLE4(KMAT, MAX2N, KE, G1,G2,G3,G4)
@@ -189,7 +190,7 @@ C=============================================================
 C  Saida (escrita em arquivo OUTFILE via OUTUNIT)
 C=============================================================
       WRITE(OUTUNIT,*) '========================================'
-      WRITE(OUTUNIT,*) 'TRELICA 2D - RESULTADOS'
+      WRITE(OUTUNIT,*) 'TRELICA 3D - RESULTADOS'
       WRITE(OUTUNIT,*) 'Arquivo de entrada: ', INFILE
       WRITE(OUTUNIT,*) 'NN, NE = ', NN, NE
       IF (METHOD.EQ.1) THEN
