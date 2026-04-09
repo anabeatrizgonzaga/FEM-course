@@ -1,7 +1,6 @@
-      PROGRAM TRUSS2D
 C=============================================================
-C  Trelica 2D - Fortran 77 (didatico)
-C  GDL por no: (ux, uy)
+C  Trelica 3D - Fortran 77 (didatico)
+C  GDL por no: (ux, uy, uz)
 C  Elemento: barra 2 nos (tracao/compressao)
 C  CC: deslocamentos prescritos via:
 C      METHOD=1: penalidade
@@ -12,8 +11,8 @@ C=============================================================
       INTEGER MAXN, MAXE, MAXM, MAXBC, MAXL
       PARAMETER (MAXN=200, MAXE=400, MAXM=50, MAXBC=400, MAXL=400)
       
-      INTEGER MAX2N
-      PARAMETER (MAX2N = 2*MAXN) 
+      INTEGER MAX3N
+      PARAMETER (MAX3N = 3*MAXN) 
 
       INTEGER NN, NE, NM, NBC, NLOAD, METHOD
       INTEGER I, J, K, E, ID, JD, M
@@ -24,32 +23,32 @@ C=============================================================
       INTEGER LDNODE(MAXL), LDDOF(MAXL)
       DOUBLE PRECISION LDVAL(MAXL)
 
-      DOUBLE PRECISION X(MAXN), Y(MAXN)
+      DOUBLE PRECISION X(MAXN), Y(MAXN), Z(MAXN)
       INTEGER E1(MAXE), E2(MAXE), EMAT(MAXE)
       DOUBLE PRECISION EA(MAXM), AA(MAXM)
 
       INTEGER NDOF, NFREE
-      INTEGER G1, G2, G3, G4
-      DOUBLE PRECISION KGL(4,4), KE(4,4)
-      DOUBLE PRECISION C, S, L, EMod, Area, kfac
+      INTEGER G1, G2, G3, G4, G5, G6
+      DOUBLE PRECISION KE(6,6)
+      DOUBLE PRECISION C, S, V,  L, EMod, Area, kfac
 
-      DOUBLE PRECISION KMAT(2*MAXN,2*MAXN)
-      DOUBLE PRECISION F(2*MAXN), U(2*MAXN), R(2*MAXN)
+      DOUBLE PRECISION KMAT(3*MAXN,3*MAXN)
+      DOUBLE PRECISION F(3*MAXN), U(3*MAXN), R(3*MAXN)
       DOUBLE PRECISION PENA
       
-      DOUBLE PRECISION UE(4), DU, NAX, SIG
+      DOUBLE PRECISION UE(6), DU, NAX, SIG
 
-      DOUBLE PRECISION KMAT_ORIG(2*MAXN,2*MAXN), F_ORIG(2*MAXN)
-      INTEGER IS_PRESCRIBED(2*MAXN)
-      INTEGER FREE_GDLS(2*MAXN)
-      DOUBLE PRECISION KRED(2*MAXN,2*MAXN), FRED(2*MAXN), URED(2*MAXN)
+      DOUBLE PRECISION KMAT_ORIG(3*MAXN,3*MAXN), F_ORIG(3*MAXN)
+      INTEGER IS_PRESCRIBED(3*MAXN)
+      INTEGER FREE_GDLS(3*MAXN)
+      DOUBLE PRECISION KRED(3*MAXN,3*MAXN), FRED(3*MAXN), URED(3*MAXN)
 
       CHARACTER*120 INFILE, OUTFILE
       INTEGER OUTUNIT
 C-------------------------------------------------------------
 
-      INFILE = 'truss2d02.dat'
-      OUTFILE = 'truss2d02-eliminacao.out'
+      INFILE = 'truss3d01.dat'
+      OUTFILE = 'truss3d01-result.out'
       OUTUNIT = 20
 
       OPEN(10,FILE=INFILE,STATUS='OLD')
@@ -58,11 +57,11 @@ C-------------------------------------------------------------
 C----- Leitura basica
       READ(10,*) NN, NE, NM, NBC, NLOAD
       READ(10,*) METHOD
-      NDOF = 2*NN
+      NDOF = 3*NN
 
 C----- Nos
       DO I=1,NN
-         READ(10,*) NODE, X(NODE), Y(NODE)
+         READ(10,*) NODE, X(NODE), Y(NODE), Z(NODE)
       END DO
 
 C----- Materiais (id, E, A)
@@ -75,12 +74,12 @@ C----- Elementos (id, no1, no2, matid)
          READ(10,*) ID, E1(ID), E2(ID), EMAT(ID)
       END DO
 
-C----- Condicoes de contorno (no, dof(1=ux,2=uy), valor)
+C----- Condicoes de contorno (no, dof(1=ux,2=uy,3=uz), valor)
       DO I=1,NBC
          READ(10,*) BCNODE(I), BCDOF(I), BCVAL(I)
       END DO
 
-C----- Cargas nodais (no, dof(1=ux,2=uy), valor)
+C----- Cargas nodais (no, dof(1=ux,2=uy,3=uz), valor)
       DO I=1,NLOAD
          READ(10,*) LDNODE(I), LDDOF(I), LDVAL(I)
       END DO
@@ -120,41 +119,67 @@ C=============================================================
          EMod = EA(MATID)
          Area = AA(MATID)
 
-         L = DSQRT( (X(N2)-X(N1))**2 + (Y(N2)-Y(N1))**2 )
+         L = DSQRT( (X(N2)-X(N1))**2 + (Y(N2)-Y(N1))**2 
+     .                               + (Z(N2)-Z(N1))**2)
          C = (X(N2)-X(N1))/L
          S = (Y(N2)-Y(N1))/L
-
+         V = (Z(N2)-Z(N1))/L
+         
          kfac = EMod*Area/L
 
-C----- Matriz local em coordenadas globais (4x4)
+C----- Matriz de rigidez local em coordenadas globais (6x6)
          KE(1,1) =  kfac*C*C
          KE(1,2) =  kfac*C*S
-         KE(1,3) = -kfac*C*C
-         KE(1,4) = -kfac*C*S
+         KE(1,3) =  kfac*C*V
+         KE(1,4) = -kfac*C*C
+         KE(1,5) = -kfac*C*S
+         KE(1,6) = -kfac*C*V
 
-         KE(2,1) =  kfac*C*S
+         KE(2,1) =  KE(1,2)
          KE(2,2) =  kfac*S*S
-         KE(2,3) = -kfac*C*S
-         KE(2,4) = -kfac*S*S
+         KE(2,3) =  kfac*S*V
+         KE(2,4) = -kfac*C*S
+         KE(2,5) = -kfac*S*S
+         KE(2,6) = -kfac*S*V
 
-         KE(3,1) = -kfac*C*C
-         KE(3,2) = -kfac*C*S
-         KE(3,3) =  kfac*C*C
-         KE(3,4) =  kfac*C*S
+         KE(3,1) =  KE(1,3)
+         KE(3,2) =  KE(2,3)
+         KE(3,3) =  kfac*V*V
+         KE(3,4) = -kfac*C*V
+         KE(3,5) = -kfac*S*V
+         KE(3,6) = -kfac*V*V
 
-         KE(4,1) = -kfac*C*S
-         KE(4,2) = -kfac*S*S
-         KE(4,3) =  kfac*C*S
-         KE(4,4) =  kfac*S*S
+         KE(4,1) =  KE(1,4)
+         KE(4,2) =  KE(2,4)
+         KE(4,3) =  KE(3,4)
+         KE(4,4) =  kfac*C*C
+         KE(4,5) =  kfac*C*S
+         KE(4,6) =  kfac*C*V
+
+         KE(5,1) =  KE(1,5)
+         KE(5,2) =  KE(2,5)
+         KE(5,3) =  KE(3,5)
+         KE(5,4) =  KE(4,5)
+         KE(5,5) =  kfac*S*S
+         KE(5,6) =  kfac*S*V
+
+         KE(6,1) =  KE(1,6)
+         KE(6,2) =  KE(2,6)
+         KE(6,3) =  KE(3,6)
+         KE(6,4) =  KE(4,6)
+         KE(6,5) =  KE(5,6)
+         KE(6,6) =  kfac*V*V
 
 C----- Mapeamento gdl
          G1 = GDL(N1,1)
          G2 = GDL(N1,2)
-         G3 = GDL(N2,1)
-         G4 = GDL(N2,2)
+         G3 = GDL(N1,3)
+         G4 = GDL(N2,1)
+         G5 = GDL(N2,2)
+         G6 = GDL(N2,3)
 
 C----- Montagem
-         CALL ASSEMBLE4(KMAT, MAX2N, KE, G1,G2,G3,G4)
+         CALL ASSEMBLE6(KMAT, MAX3N, KE, G1,G2,G3,G4,G5,G6)
       END DO
 
 C----- Armazena K e F originais
@@ -170,12 +195,12 @@ C  Resolve de acordo com METHOD
 C=============================================================
       IF (METHOD.EQ.1) THEN
 C----- Metodo 1: Penalidade
-         CALL RESOLVE_PENALTY(NDOF, MAX2N, KMAT, F, U, 
+         CALL RESOLVE_PENALTY(NDOF, MAX3N, KMAT, F, U, 
      .                        KMAT_ORIG, F_ORIG, NBC, 
      .                        BCNODE, BCDOF, BCVAL, R)
       ELSE IF (METHOD.EQ.2) THEN
 C----- Metodo 2: Eliminacao de linhas/colunas
-         CALL RESOLVE_ELIMINATION(NDOF, MAX2N, KMAT, F, U, 
+         CALL RESOLVE_ELIMINATION(NDOF, MAX3N, KMAT, F, U, 
      .                            KMAT_ORIG, F_ORIG, NBC, 
      .                            BCNODE, BCDOF, BCVAL, R,
      .                            IS_PRESCRIBED, FREE_GDLS, 
@@ -188,8 +213,8 @@ C----- Metodo 2: Eliminacao de linhas/colunas
 C=============================================================
 C  Saida (escrita em arquivo OUTFILE via OUTUNIT)
 C=============================================================
-      WRITE(OUTUNIT,*) '========================================'
-      WRITE(OUTUNIT,*) 'TRELICA 2D - RESULTADOS'
+      WRITE(OUTUNIT,*) '========================================='
+      WRITE(OUTUNIT,*) 'TRELICA 3D - RESULTADOS'
       WRITE(OUTUNIT,*) 'Arquivo de entrada: ', INFILE
       WRITE(OUTUNIT,*) 'NN, NE = ', NN, NE
       IF (METHOD.EQ.1) THEN
@@ -200,8 +225,8 @@ C=============================================================
       WRITE(OUTUNIT,*) '----------------------------------------'
       WRITE(OUTUNIT,*) 'DESLOCAMENTOS (por no):'
       DO I=1,NN
-         WRITE(OUTUNIT,'(A,I4,A,1PE12.4,A,1PE12.4)') 'No ',I,': ux=',
-     .U(GDL(I,1)),'  uy=',U(GDL(I,2))
+         WRITE(OUTUNIT,'(A,I4,A,1PE12.4,A,1PE12.4,A,1PE12.4)') 'No ',
+     .   I,': ux=',U(GDL(I,1)),'  uy=',U(GDL(I,2)),'  uz=',U(GDL(I,3))
       END DO
 
       WRITE(OUTUNIT,*) '----------------------------------------'
@@ -220,18 +245,22 @@ C=============================================================
          EMod = EA(MATID)
          Area = AA(MATID)
 
-         L = DSQRT( (X(N2)-X(N1))**2 + (Y(N2)-Y(N1))**2 )
+         L = DSQRT( (X(N2)-X(N1))**2 + (Y(N2)-Y(N1))**2 
+     .                               + (Z(N2)-Z(N1))**2)
          C = (X(N2)-X(N1))/L
          S = (Y(N2)-Y(N1))/L
+         V = (Z(N2)-Z(N1))/L
 
 C----- deslocamentos do elemento
          Ue(1) = U(GDL(N1,1))
          Ue(2) = U(GDL(N1,2))
-         Ue(3) = U(GDL(N2,1))
-         Ue(4) = U(GDL(N2,2))
+         Ue(3) = U(GDL(N1,3))
+         Ue(4) = U(GDL(N2,1))
+         Ue(5) = U(GDL(N2,2))
+         Ue(6) = U(GDL(N2,3))
 
 C----- alongamento axial (projecao)
-         du  = (Ue(3)-Ue(1))*C + (Ue(4)-Ue(2))*S
+         du  = (Ue(4)-Ue(1))*C + (Ue(5)-Ue(2))*S + (Ue(6)-Ue(3))*V
          Nax = EMod*Area/L * du
          Sig = Nax/Area
 
@@ -239,7 +268,10 @@ C----- alongamento axial (projecao)
      .   ': N=',Nax,'  sigma=',Sig
       END DO
 
+      WRITE(OUTUNIT,*) '========================================='
       CLOSE(OUTUNIT)
+
+      WRITE(*,*) 'Calculo concluido! Resultados em: ', OUTFILE
 
       STOP
       END
@@ -248,21 +280,21 @@ C=============================================================
       INTEGER FUNCTION GDL(NODE, DOF)
       IMPLICIT NONE
       INTEGER NODE, DOF
-      GDL = 2*(NODE-1) + DOF
+      GDL = 3*(NODE-1) + DOF
       RETURN
       END
 
 C=============================================================
-      SUBROUTINE RESOLVE_PENALTY(NDOF, MAX2N, KMAT, F, U, 
+      SUBROUTINE RESOLVE_PENALTY(NDOF, MAX3N, KMAT, F, U, 
      .                           KMAT_ORIG, F_ORIG, NBC, 
      .                           BCNODE, BCDOF, BCVAL, R)
       IMPLICIT NONE
-      INTEGER NDOF, MAX2N, NBC
+      INTEGER NDOF, MAX3N, NBC
       INTEGER BCNODE(NBC), BCDOF(NBC)
       DOUBLE PRECISION BCVAL(NBC)
-      DOUBLE PRECISION KMAT(MAX2N,MAX2N), F(MAX2N), U(MAX2N)
-      DOUBLE PRECISION KMAT_ORIG(MAX2N,MAX2N), F_ORIG(MAX2N)
-      DOUBLE PRECISION R(MAX2N)
+      DOUBLE PRECISION KMAT(MAX3N,MAX3N), F(MAX3N), U(MAX3N)
+      DOUBLE PRECISION KMAT_ORIG(MAX3N,MAX3N), F_ORIG(MAX3N)
+      DOUBLE PRECISION R(MAX3N)
       INTEGER GDL
       INTEGER I, J, G1
       DOUBLE PRECISION PENA
@@ -282,7 +314,7 @@ C----- Penalidade tipica: 1e12 * max(diagonal)
       END DO
 
 C----- Resolve: KMAT * U = F
-      CALL GAUSS(NDOF, MAX2N, KMAT, F, U)
+      CALL GAUSS(NDOF, MAX3N, KMAT, F, U)
 
 C----- Reacoes corretas: R = K_original * U - F_original
       DO I=1,NDOF
@@ -297,23 +329,22 @@ C----- Reacoes corretas: R = K_original * U - F_original
       END
 
 C=============================================================
-      SUBROUTINE RESOLVE_ELIMINATION(NDOF, MAX2N, KMAT, F, U, 
+      SUBROUTINE RESOLVE_ELIMINATION(NDOF, MAX3N, KMAT, F, U, 
      .                               KMAT_ORIG, F_ORIG, NBC, 
      .                               BCNODE, BCDOF, BCVAL, R,
      .                               IS_PRESCRIBED, FREE_GDLS, 
      .                               NFREE, KRED, FRED, URED)
       IMPLICIT NONE
-      INTEGER NDOF, MAX2N, NBC, NFREE
+      INTEGER NDOF, MAX3N, NBC, NFREE
       INTEGER BCNODE(NBC), BCDOF(NBC)
       DOUBLE PRECISION BCVAL(NBC)
-      DOUBLE PRECISION KMAT(MAX2N,MAX2N), F(MAX2N), U(MAX2N)
-      DOUBLE PRECISION KMAT_ORIG(MAX2N,MAX2N), F_ORIG(MAX2N)
-      DOUBLE PRECISION R(MAX2N)
+      DOUBLE PRECISION KMAT(MAX3N,MAX3N), F(MAX3N), U(MAX3N)
+      DOUBLE PRECISION KMAT_ORIG(MAX3N,MAX3N), F_ORIG(MAX3N)
+      DOUBLE PRECISION R(MAX3N)
       INTEGER IS_PRESCRIBED(NDOF), FREE_GDLS(NDOF)
-      DOUBLE PRECISION KRED(MAX2N,MAX2N), FRED(MAX2N), URED(MAX2N)
+      DOUBLE PRECISION KRED(MAX3N,MAX3N), FRED(MAX3N), URED(MAX3N)
       INTEGER GDL
-      INTEGER I, J, II, JJ, G1, G2
-      DOUBLE PRECISION IRED, JRED
+      INTEGER I, J, II, JJ, G1
 
 C----- Identifica gdls livres
       NFREE = 0
@@ -335,7 +366,7 @@ C----- Constroi sistema reduzido (apenas gdls livres)
       END DO
 
 C----- Resolve sistema reduzido: KRED * URED = FRED
-      CALL GAUSS(NFREE, MAX2N, KRED, FRED, URED)
+      CALL GAUSS(NFREE, MAX3N, KRED, FRED, URED)
 
 C----- Reconstroi vetor completo U
       DO I=1,NDOF
@@ -363,20 +394,22 @@ C----- Reacoes: R = K_original * U - F_original
       END
 
 C=============================================================
-      SUBROUTINE ASSEMBLE4(KMAT, LDA, KE, G1,G2,G3,G4)
+      SUBROUTINE ASSEMBLE6(KMAT, LDA, KE, G1,G2,G3,G4,G5,G6)
       IMPLICIT NONE
-      INTEGER LDA, G1,G2,G3,G4
-      DOUBLE PRECISION KMAT(LDA, *), KE(4,4)
+      INTEGER LDA, G1,G2,G3,G4,G5,G6
+      DOUBLE PRECISION KMAT(LDA, *), KE(6,6)
       INTEGER I,J
-      INTEGER G(4)
+      INTEGER G(6)
 
       G(1)=G1
       G(2)=G2
       G(3)=G3
       G(4)=G4
+      G(5)=G5
+      G(6)=G6
 
-      DO I=1,4
-         DO J=1,4
+      DO I=1,6
+         DO J=1,6
             KMAT(G(I),G(J)) = KMAT(G(I),G(J)) + KE(I,J)
          END DO
       END DO
@@ -388,7 +421,7 @@ C=============================================================
       SUBROUTINE GAUSS(N, LDA, A, B, X)
       IMPLICIT NONE
       INTEGER N, LDA, I, J, K
-      DOUBLE PRECISION A(LDA, N), B(N), X(N)
+      DOUBLE PRECISION A(LDA, *), B(N), X(N)
 C  Resolve A*X=B por eliminacao de Gauss (sem pivotamento)
       DOUBLE PRECISION PIV, F
       DOUBLE PRECISION SUM
@@ -397,8 +430,8 @@ C----- Eliminacao
       DO K=1,N-1
          PIV = A(K,K)
          IF (DABS(PIV).LT.1.0D-30) THEN
-          WRITE(*,*) 'Pivo ~ 0 em K=',K,'; sistema pode estar singular.'
-          STOP
+            WRITE(*,*) 'Pivo ~ 0 em K=',K,'; sistema singular!'
+            STOP
          END IF
          DO I=K+1,N
             F = A(I,K)/PIV

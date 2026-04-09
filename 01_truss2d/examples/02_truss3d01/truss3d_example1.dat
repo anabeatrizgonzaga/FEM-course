@@ -1,0 +1,15 @@
+C EXEMPLO 1: Barra simples em tração (3D)
+C Dois nos, uma barra, sem material
+C Geometria: No 1 em origem, No 2 em (L, 0, 0)
+C CC: No 1 fixo em X,Y,Z; No 2 tem carga P em X
+C
+4  1  1  3  1
+2
+1   0.0D0   0.0D0   0.0D0
+2   1.0D0   0.0D0   0.0D0
+1   2.1D11   0.01D0
+1   1   2   1
+1   1   0.0D0
+1   2   0.0D0
+1   3   0.0D0
+2   1   1000.0D0
