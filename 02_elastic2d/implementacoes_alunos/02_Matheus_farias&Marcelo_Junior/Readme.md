@@ -7,7 +7,7 @@
 
 ## 1. Visão Geral do Projeto
 
-Este repositório contém a extensão e o aprimoramento de um código computacional escrito em Fortran para a análise de tensões e deformações em estruturas bidimensionais. O programa utiliza o Método dos Elementos Finitos (MEF) com elementos triangulares (T3) e quadrilaterais de 4 nós (Q4), sendo capaz de simular cenários de **Estado Plano de Tensões (EPT)** e **Estado Plano de Deformações (EPD)**.
+Este repositório contém a extensão e o aprimoramento de um código computacional escrito em Fortran para a análise de tensões e deformações em estruturas bidimensionais. O programa utiliza o Método dos Elementos Finitos (MEF) com elementos triangulares de três nós (T3) e quadrilaterais de 4 nós (Q4), sendo capaz de simular cenários de **Estado Plano de Tensões (EPT)** e **Estado Plano de Deformações (EPD)**.
 
 O objetivo principal das implementações deste trabalho foi criar uma subrotina para extrair os resultados de deslocamento e transformá-los em campos de tensões, permitindo a visualização gráfica das estruturas submetidas a carregamentos. 
 Isto é, criar uma subrotina que recupera σx, σy, τxy a partir dos deslocamentos nodais para os elementos Q4 (elmt03 e elmt04), recuperar σx, σy, τxy nos pontos de Gauss 2×2 e imprimir as saídas de tensões nos pontos de graus no arquivo de saída, em formato .vtk
@@ -16,7 +16,7 @@ Isto é, criar uma subrotina que recupera σx, σy, τxy a partir dos deslocamen
 
 ## 2. Modificações e Melhorias Implementadas
 
-Para que o cálculo das tensões fosse realizado o código original foi expandido nas seguintes partes:
+Para que o cálculo das tensões fosse realizado, o código original foi expandido nas seguintes partes:
 
 ### 2.1. Diferenciação da Física (EPT e EPD)
 A Matriz Constitutiva, que dita o comportamento elástico do material, foi ajustada para identificar automaticamente qual formulação física utilizar com base nos dados de entrada. Isso garante que o efeito de compressão ou expansão lateral (Efeito de Poisson) seja calculado corretamente, respeitando a espessura da estrutura física.
@@ -28,7 +28,7 @@ Na mecânica dos Elementos Finitos, as tensões não são calculadas diretamente
 Para que o software de visualização (ParaView) consiga plotar o mapa de cores das tensões, precisamos exportar os resultados matemáticos de forma legível. Isso foi feito em duas etapas evolutivas, gerando duas versões distintas do código:
 
 **A. Primeira Etapa: A Abordagem por Média (Discreta)**
-Na primeira versão (`Solucao-mef_media`), o código pega os valores de tensão calculados nos pontos internos de Gauss e extrai uma média simples para representar o elemento inteiro. Como resultado, cada quadrado na malha recebe um valor único e uma cor sólida. O mapa visual gerado é discreto (semelhante a blocos ou pixels). É útil para verificação global do equilíbrio, mas possui a limitação de não reflete a transição contínua de forças que ocorre.
+Na primeira versão (`Solucao-mef_media`), o código pega os valores de tensão calculados nos pontos internos de Gauss e extrai uma média simples para representar o elemento inteiro. Como resultado, cada quadrado na malha recebe um valor único e uma cor sólida. O mapa visual gerado é discreto (semelhante a blocos ou pixels). É útil para verificação global do equilíbrio, mas possui a limitação de não refletir a transição contínua de forças que ocorre.
 
 **B. Segunda Etapa: A Abordagem Suavizada (Projeção Nodal)**
 Para resolver a descontinuidade visual e simular o comportamento contínuo dos materiais reais, desenvolvemos a versão suavizada (`Solucao-mef_suavizado`). O processo ocorre em dois passos:
@@ -41,7 +41,7 @@ O resultado final é um único valor de tensão por nó. Isso permite que o soft
 
 ## 3. Metodologia de Validação e Testes
 
-Para provar a precisão das matrizes implementadas, criamos três cenários de testes, disponíveis na pasta de exemplos:
+Para provar a precisão das matrizes implementadas, criamos cinco cenários de testes, disponíveis na pasta de exemplos:
 
 ### Exemplo 1: Malha de 25 Elementos (Teste de Sintaxe e Conectividade)
 * **Objetivo:** Calibrar o código para garantir a correta leitura, alocação de memória e escrita do formato estruturado do arquivo VTK.
@@ -63,6 +63,24 @@ Para provar a precisão das matrizes implementadas, criamos três cenários de t
 * **A Simulação:** Uma placa refinada com 100 elementos e 121 nós, engastada em toda a sua lateral esquerda. Desta vez, introduzimos um Coeficiente de Poisson real (0.3), forçando o programa a acoplar o cálculo dos eixos X e Y.
 * **Carga e Resultado:** Aplicamos um carregamento vertical de cima para baixo no topo da estrutura. Como resultado, o mapa do ParaView gerou campos de tensão contínuos e sem quebras abruptas de cor, exibindo uma clara zona de tração na parte superior próxima ao engaste e uma zona de compressão na parte inferior, retratando o comportamento real de flexão da estrutura.
 
+### Exemplo 4: Compressão Confinada em 1 Elemento (Validação EPD)
+* **Objetivo:** Comprovar a resposta do código à formulação de Estado Plano de Deformações (EPD - `elmt03`), validando o cálculo transversal gerado pelo Efeito de Poisson sob confinamento total.
+* **A Simulação:** Um bloco de 1 x 1 metro (E=1000, Poisson=0.3), totalmente travado na base e com as laterais impedidas de expandir no eixo X. Uma carga de compressão vertical de -100 foi aplicada no topo.
+* **O que era esperado (Cálculo Analítico):**
+  * A Tensão Y esperada era exatamente -100.
+  * Como o elemento EPD simula uma estrutura infinitamente profunda (travada no eixo Z), o estufamento lateral fica duplamente confinado. Matematicamente, a Tensão X gerada pela parede deveria ser exatamente -42.85.
+  * O deslocamento vertical no topo deveria ser -0.074, refletindo a alta rigidez da estrutura confinada.
+* **Resultado Obtido:** Os resultados do ParaView e do arquivo de saída cravaram exatamente nos valores analíticos (-100 em Y, -42.85 em X e -0.074 de deslocamento), comprovando a precisão da Matriz Constitutiva para EPD.
+
+### Exemplo 5: Compressão Confinada em 1 Elemento (Validação EPT)
+* **Objetivo:** Provar a diferenciação física do código ao trocar para o Estado Plano de Tensões (EPT - `elmt04`), simulando o mesmo carregamento em uma chapa fina.
+* **A Simulação:** O exato mesmo modelo do Exemplo 4 (bloco 1 x 1, carga de -100, travamento lateral em X), mas utilizando o elemento tipo 4 e declarando a espessura da chapa como 1.0.
+* **O que era esperado (Cálculo Analítico):**
+  * A Tensão Y continuaria sendo -100.
+  * Como uma chapa fina (EPT) está livre para "estufar" na direção Z, a pressão exercida contra as paredes laterais (eixo X) é menor. A Tensão X esperada cairia para exatamente -30.
+  * Por estar livre em Z, a estrutura se torna menos rígida que no EPD. O deslocamento vertical esperado era maior: -0.091.
+* **Resultado Obtido:** O programa registrou perfeitamente a queda de rigidez, retornando a Tensão X de -30 e deslocamento de -0.091. Este teste cruzado serve como prova de que o software interpreta corretamente a mecânica tridimensional por trás de cada formulação.
+
 ---
 
 ## 4. Estrutura de Diretórios
@@ -73,6 +91,6 @@ O repositório foi organizado para separar de forma limpa o código-fonte dos da
     * `Solucao-mef_media.f` (Gera as tensões médias por elemento).
     * `Solucao-mef_suavizado.f` (Gera o campo de tensões nodais contínuas).
 * `exemplos/`: Diretório de testes.
-    * `Media/`: Contém os três exemplos calculados com a primeira abordagem.
-    * `Suavizado/`: Contém os três exemplos calculados com a projeção nodal avançada.
+    * `Media/`: Contém os cinco exemplos calculados com a primeira abordagem.
+    * `Suavizado/`: Contém os cinco exemplos calculados com a projeção nodal avançada.
     * *Nota:* Dentro de cada diretório de exemplo estão os arquivos de entrada de dados (`.dat`), os relatórios brutos de saída, o arquivo interpretável (`.vtk`) e uma pasta dedicada às imagens de comprovação do ParaView.
