@@ -583,31 +583,23 @@ c
 c ======================================================================
       subroutine elmt02(e,x,u,p,s,nel,ndm,nst,isw,nin)
 c     Elemento triangular linear T3
-c     Hipotese: Estado Plano de TENSOES (EPT)
-c     Parametros do material: E, nu, espessura t
-c
-c     Matriz constitutiva EPT:
-c       a = E/(1-nu^2)
-c       D = | a      a*nu      0          |
-c           | a*nu   a         0          |
-c           | 0      0    E/[2(1+nu)]     |
+c     Hipotese: Estado Plano de TENSOES (EPT) - MATERIAL ORTOTROPICO
+c     Parametros do material: Ex, Ey, nuxy, Gxy, espessura t
 c ======================================================================
-      integer nel,ndm,nst,isw
+      integer nel,ndm,nst,isw,nin
       real*8  e(*),x(ndm,*),u(nst),p(nst),s(nst,nst)
       real*8  det,xj11,xj12,xj21,xj22,hx(3),hy(3)
       real*8  xji11,xji12,xji21,xji22,d11,d12,d21,d22,d33
-      real*8  my,nu,thic,a,wt
+      real*8  ex,ey,nuxy,gxy,nuyx,thic,fator,wt
       goto (100,200) isw
 c
-c     isw=1: leitura das constantes fisicas: E, nu, espessura
+c     isw=1: leitura das constantes fisicas ortotropicas + espessura
 c
   100 continue
-      read(nin,*) e(1),e(2),e(3)
+      read(nin,*) e(1),e(2),e(3),e(4),e(5)
       return
 c
 c     isw=2: calculo da matriz de rigidez
-c
-c     Matriz Jacobiana:
 c
   200 continue
       xj11 = x(1,1)-x(1,3)
@@ -633,20 +625,27 @@ c
       hy(2) =  xji22
       hy(3) = -xji21-xji22
 c
-c     Matriz constitutiva D (Estado Plano de Tensoes):
+c     Matriz constitutiva D (Ortotropica em EPT):
 c
-      my   = e(1)
-      nu   = e(2)
-      thic = e(3)
-      a    = my/(1.d0-nu*nu)
-      d11  = a
-      d12  = a*nu
+      ex   = e(1)
+      ey   = e(2)
+      nuxy = e(3)
+      gxy  = e(4)
+      thic = e(5)
+      
+      ! Condicao de simetria para calcular nuyx
+      nuyx = nuxy * (ey / ex)
+      
+      ! Fator de escala da matriz constitutiva
+      fator = 1.d0 / (1.d0 - nuxy*nuyx)
+      
+      d11  = fator * ex
+      d12  = fator * nuxy * ey
       d21  = d12
-      d22  = a
-      d33  = my/(2.d0*(1.d0+nu))
+      d22  = fator * ey
+      d33  = gxy
 c
 c     Matriz de rigidez: Ke = B^T D B * (det/2) * t
-c       wt = Area * espessura
 c
       wt = 0.5d0*det*thic
       do 220 j = 1, 3
@@ -805,39 +804,42 @@ c
 c ======================================================================
       subroutine elmt04(e,x,u,p,s,nel,ndm,nst,isw,nin)
 c     Elemento quadrilatero bilinear Q4
-c     Hipotese: Estado Plano de TENSOES (EPT)
-c     Parametros do material: E, nu, espessura t
-c
-c     Integracao numerica: Gauss 2x2 (4 pontos)
-c     Igual ao elmt03, com matriz D de EPT e fator espessura.
+c     Hipotese: Estado Plano de TENSOES (EPT) - MATERIAL ORTOTROPICO
+c     Parametros do material: Ex, Ey, nuxy, Gxy, espessura t
 c ======================================================================
-      integer nel,ndm,nst,isw,i,j,k,l,m,n
+      integer nel,ndm,nst,isw,nin,i,j,k,l,m,n
       real*8  e(*),x(ndm,*),u(nst),p(nst),s(nst,nst),xj(ndm,2)
       real*8  det,hx(4),hy(4),xji(ndm,2),hr(4),hs(4)
       real*8  rr,ss,d11,d12,d21,d22,d33
-      real*8  my,nu,a,thic,wt
+      real*8  ex,ey,nuxy,gxy,nuyx,thic,fator,wt
       goto (100,200) isw
 c
-c     isw=1: leitura das constantes fisicas: E, nu, espessura
+c     isw=1: leitura das constantes fisicas ortotropicas + espessura
 c
   100 continue
-      read(nin,*) e(1),e(2),e(3)
+      read(nin,*) e(1),e(2),e(3),e(4),e(5)
       return
 c
 c     isw=2: calculo da matriz de rigidez
 c
-c     Matriz constitutiva D (Estado Plano de Tensoes):
-c
   200 continue
-      my   = e(1)
-      nu   = e(2)
-      thic = e(3)
-      a    = my/(1.d0-nu*nu)
-      d11  = a
-      d12  = a*nu
+      ex   = e(1)
+      ey   = e(2)
+      nuxy = e(3)
+      gxy  = e(4)
+      thic = e(5)
+      
+      ! Condicao de simetria para calcular nuyx
+      nuyx = nuxy * (ey / ex)
+      
+      ! Fator de escala da matriz constitutiva
+      fator = 1.d0 / (1.d0 - nuxy*nuyx)
+      
+      d11  = fator * ex
+      d12  = fator * nuxy * ey
       d21  = d12
-      d22  = a
-      d33  = my/(2.d0*(1.d0+nu))
+      d22  = fator * ey
+      d33  = gxy
 c
 c     Zeragem da matriz de rigidez local:
 c
@@ -864,8 +866,6 @@ c
           ss = -0.577350269189626d0
         endif
 c
-c       Derivadas das funcoes de interpolacao em r e s:
-c
         hr(1) =   (1.d0+ss) / 4.d0
         hr(2) = - (1.d0+ss) / 4.d0
         hr(3) = - (1.d0-ss) / 4.d0
@@ -875,33 +875,23 @@ c
         hs(3) = - (1.d0-rr) / 4.d0
         hs(4) = - (1.d0+rr) / 4.d0
 c
-c       Matriz Jacobiana:
-c
         xj(1,1) = hr(1)*x(1,1)+hr(2)*x(1,2)+hr(3)*x(1,3)+hr(4)*x(1,4)
         xj(2,1) = hs(1)*x(1,1)+hs(2)*x(1,2)+hs(3)*x(1,3)+hs(4)*x(1,4)
         xj(1,2) = hr(1)*x(2,1)+hr(2)*x(2,2)+hr(3)*x(2,3)+hr(4)*x(2,4)
         xj(2,2) = hs(1)*x(2,1)+hs(2)*x(2,2)+hs(3)*x(2,3)+hs(4)*x(2,4)
 c
-c       Determinante da Jacobiana:
-c
         det = xj(1,1)*xj(2,2)-xj(2,1)*xj(1,2)
         if (det .le. 0.d0) goto 1000
-c
-c       Inversa da Jacobiana:
 c
         xji(1,1) =  xj(2,2) / det
         xji(1,2) = -xj(1,2) / det
         xji(2,1) = -xj(2,1) / det
         xji(2,2) =  xj(1,1) / det
 c
-c       Derivadas das funcoes de interpolacao em x e y:
-c
         do 300 k = 1, 4
           hx(k) = xji(1,1)*hr(k) + xji(1,2)*hs(k)
           hy(k) = xji(2,1)*hr(k) + xji(2,2)*hs(k)
   300   continue
-c
-c       Contribuicao ao Ke: Ke += B^T*D*B * det(J) * t * wi*wj
 c
         wt = det * thic
         do 500 m = 1, 4
@@ -922,7 +912,7 @@ c
       print*, '    Verifique a ordem dos nos (deve ser anti-horaria).'
       stop
       end
-
+      
 c ======================================================================
       subroutine elmt01_t(e,x,u,p,s,nel,ndm,nst,isw,nin)
 c     Elemento triangular linear T3
@@ -1507,3 +1497,4 @@ c
          return
       endif
       end
+      
