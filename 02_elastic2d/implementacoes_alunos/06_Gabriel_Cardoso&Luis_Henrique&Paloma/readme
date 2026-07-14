@@ -1,0 +1,127 @@
+**1. Cálculo de tensões principais e direções principais nos elementos T3, e visualização no VTK**
+
+
+
+**2. Descrição:** 
+
+A funcionalidade principal (subrotina calc\_stress) recebe o campo de deslocamentos nodais previamente resolvido pelo sistema global e o traduz em um mapa de tensões internas para elementos triangulares de deformação constante (T3). O código é capaz de identificar automaticamente o tipo de análise definida no arquivo de entrada, adaptando a matriz constitutiva do material para o Estado Plano de Deformações (EPD) ou Estado Plano de Tensões (EPT).
+A rotina opera extraindo as coordenadas e os deslocamentos locais de cada elemento isolado. Por meio do mapeamento isoparamétrico e do cálculo da Matriz Jacobiana Inversa, o programa determina as derivadas das funções de forma em relação ao sistema global para encontrar as deformações (ex, ey, gammaxy). Em seguida, aplica-se a Lei de Hooke generalizada para calcular as tensões cartesianas correspondentes.
+Para a avaliação de falhas na estrutura, o código parte de uma rotina que constrói analiticamente o Círculo de Mohr para cada triângulo da malha, determinando as Tensões Principais de tração e compressão máximas absolutas, assim como a inclinação do plano principal. Por fim, a sub-rotina de exportação (wvtk) empacota esses resultados como grandezas numéricas na área dos elementos, gerando um arquivo compatível com o formato VTK para visualização e análise do mapa de cores no software ParaView.
+
+
+
+**3. Formulação teórica**:
+
+Deformações: A relação entre a deformação real e os deslocamentos nodais é intermediada pelas derivadas espaciais das funções de forma no sistema global (x, y), obtidas através da inversão da Matriz Jacobiana.
+
+Relação Constitutiva (Lei de Hooke Generalizada): A conversão de deformações em tensões depende do modelo físico adotado, seja Estado Plano de Deformações ou Estado Plano de Tensões.
+
+Tensões Principais (Círculo de Mohr):
+As tensões máximas atuantes no elemento independentes do sistema de coordenadas global são calculadas pelas seguintes expressões:
+Centro: média entre as tensões máximas
+Raio: tensão máxima de cisalhamento (tauxy)
+Tensões principais de tração e compressão: sigma1 = Centro + Raio; sigma 2 = Centro - Raio; respectivamente
+Ângulo do estado plano de tensões: arctan(2\*tauxy/(sigma1-sigma2))/2
+
+
+
+**4. Como compilar e rodar**:
+
+Para compilá-lo e visualizar os resultados, siga os passos abaixo:
+
+Pré-requisitos: Compilador Fortran (gfortran) instalado e o software de visualização ParaView.
+
+Compilação: Abra o terminal na pasta onde os arquivos fonte .f90 (ou .f) estão localizados e execute:
+
+gfortran -O2 -ffixed-form -o mef MEF2DStress.f
+
+(Substitua mef\_main.f90 e subrotinas.f90 pelos nomes reais dos arquivos do seu projeto).
+
+Execução: Rode o executável gerado. O programa solicitará a leitura do arquivo de entrada (contendo a geometria, os materiais e as forças):
+
+.\\mef.exe
+
+ex1.dat
+
+Visualização: O programa gerará um arquivo de saída (ex: saída.out) e de visualização com a extensão .vtk (ex: resultado.vtk). Abra o software ParaView, vá em File -> Open e selecione o arquivo gerado.
+Na interface do ParaView, clique no botão Apply. No menu superior de cores, altere a visualização de Solid Color para os escalares calculados: Sigma1, Sigma2 ou Angulo\_Theta.
+
+
+
+**5. Exemplo:**
+
+Para o caso teste foi criado um painel de 1x1, com a criação de um material cujo módulo de elasticidade é 30 GPa e coeficiente de Poisson de 0,20. A chapa tem espessura de 0.10m e apoio linear de engaste em todo borda esquerda. Também foram aplicadas cargas nodais verticais por toda borda superior (cada nó recebe 10000 N, com exceção do mais externo, 5000 N).
+
+Cargas totais aplicadas: Fy=-950000 N
+
+
+
+**6. Verificação:**
+
+A verificação dos resultados foi feita no software de análise estrutural Autodesk Robot, com as mesmas condições de contorno e propriedades físicas do material.
+
+
+
+Conforme apresentado em sala, os resultados obtidos, para os deslocamentos, foram:
+
+* Robot:
+
+Nós		    Ux(m)		            Uy(m)
+
+1		       0,0		             0,0
+
+2	    -2,297\*10^-5  	    -6,234\*10^-5
+
+3	     2,712\*10^-5	      -7,386\*10^-5
+
+5		       0,0		             0,0
+
+
+
+* Fortran:
+
+Nós		      Ux(m)		          Uy(m)
+
+111		      0,0		             0,0
+
+121	    -2,230\*10^-5	    -6,100\*10^-5
+
+11	    2,654\*10^-5	    -7,259\*10^-5
+
+1		        0,0		              0,0
+
+
+
+Quanto aos resultados das tensões, foram:
+
+Tensão		Robot(MPa)	Fortran(MPa)
+
+sigma1		 3,808		    2,909 		
+
+sigma2		-2,701		   -2,419
+
+
+
+Quanto aos resultados do ângulo do plano principal:
+
+Theta		  Robot(rad)	  Fortran(rad)
+
+Mínimo	  	-1,460		     -1,397
+
+Máximo		   0,795	      	1,064
+
+
+Obs.: As discrepâncias analisadas ocorreram devido ao refinamento da malha do robot, que não discretiza-a em elementos T3 (somente sua borda). Todo o restante, portanto, foi discretizado em elementos quadriláteros.
+
+
+
+
+
+**7. Referências**
+
+GONZAGA E SILVA, Ana Beatriz. Método dos Elementos Finitos - Aula 7: Tensão, Deformação e Sólidos Planos. Material didático (Slides da disciplina). Universidade Federal do Rio de Janeiro (UFRJ), 2026.
+
+Hibbeler, R. C. (2010). Resistência dos Materiais (7ª ed.). Pearson Prentice Hall.
+
+PROGRAMA MEF. Código do programa estruturado em Fortran, disponibilizado na disciplina de Método dos Elementos Finitos. Departamento de Estruturas, Universidade Federal do Rio de Janeiro, 2026.
+
