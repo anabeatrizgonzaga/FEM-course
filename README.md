@@ -89,3 +89,4 @@ Veja a lista completa em [`material/referencias.md`](material/referencias.md).
 <p align="center">
   Desenvolvido com fins didáticos · Universidade Federal do Rio de Janeiro · Departamento de Estruturas - Escola Politécnica
 </p>
+
